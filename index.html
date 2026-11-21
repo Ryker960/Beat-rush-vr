@@ -137,7 +137,11 @@
     sphere(gorilla, fur, [0.42, 1.86, -1.25], [0.13, 0.17, 0.13]);
     sphere(gorilla, fur, [-0.56, 1.22, -1.22], [0.22, 0.48, 0.22]);
     sphere(gorilla, fur, [0.56, 1.22, -1.22], [0.22, 0.48, 0.22]);
-    scene.add(gorilla);
+    // Keep the avatar attached to the headset camera so it is a first-person body view,
+    // not a separate character standing in front of the player.
+    camera.add(gorilla);
+    gorilla.position.set(0, -1.9, -0.85);
+    gorilla.scale.setScalar(0.6);
 
     const controllers = [];
     const sabers = [];
@@ -173,6 +177,9 @@
       const glow = new THREE.PointLight(saberColors[i], 2, 2);
       glow.position.y = -0.45;
       saber.add(glow);
+      // Rotate the saber so its blade extends forward (-Z) from the controller,
+      // rather than pointing down toward the floor.
+      saber.rotation.x = Math.PI / 2;
       controller.add(saber);
       sabers.push(saber);
       saberTips.push(new THREE.Vector3(0, -0.88, 0));

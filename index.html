@@ -127,6 +127,7 @@
       const controller = renderer.xr.getController(i);
       controller.addEventListener('connected', (event) => {
         controller.userData.inputSource = event.data;
+        controller.userData.lane = event.data.handedness === 'right' ? 1 : 0;
       });
       controller.addEventListener('disconnected', () => {
         controller.userData.inputSource = null;
@@ -175,7 +176,7 @@
       blocks.push({ mesh: group, lane, hit: false });
     }
 
-    let score = 0, combo = 0, lastSpawn = 0, beat = 0, running = false;
+    let score = 0, combo = 0, lastSpawn = 0, spawnIndex = 0, musicBeat = 0, running = false;
     const clock = new THREE.Clock();
     const beatMs = 60000 / 105;
     let audioContext = null;
@@ -205,9 +206,9 @@
         while (next < now + 0.15) {
           playTone(65, 0.16, 'sine', 0.7, next);
           playTone(900, 0.035, 'square', 0.035, next + 0.01);
-          if (beat % 2 === 1) playTone(180, 0.08, 'triangle', 0.12, next);
+          if (musicBeat % 2 === 1) playTone(180, 0.08, 'triangle', 0.12, next);
           next += beatMs / 1000;
-          beat++;
+          musicBeat++;
         }
       }, 40);
     }
@@ -238,7 +239,7 @@
         const tip = new THREE.Vector3(0, -0.88, 0);
         controller.localToWorld(tip);
         tempEnd.copy(tip);
-        const side = controller === controllers[0] ? 0 : 1;
+        const side = Number.isInteger(controller.userData.lane) ? controller.userData.lane : (controller === controllers[0] ? 0 : 1);
         for (let i = blocks.length - 1; i >= 0; i--) {
           const block = blocks[i];
           if (block.hit || block.lane !== side) continue;
@@ -256,11 +257,11 @@
     }
 
     function spawnBeat() {
-      const lane = beat % 2;
-      const y = beat % 4 < 2 ? 1.45 : 1.85;
+      const lane = spawnIndex % 2;
+      const y = spawnIndex % 4 < 2 ? 1.45 : 1.85;
       makeBlock(lane, y);
       // Every fourth beat adds a second target on the opposite side.
-      if (beat % 4 === 3) makeBlock(1 - lane, 1.55);
+      if (spawnIndex % 4 === 3) makeBlock(1 - lane, 1.55);
     }
 
     function animate() {

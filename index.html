@@ -36,19 +36,8 @@
     .songCheck { color:#5deaff; font-size:18px; }
     #musicVolume { width:100%; accent-color:#20dfff; margin:5px 0 14px; }
     #volumeLabel { display:flex; justify-content:space-between; color:#9caacb; font-size:11px; letter-spacing:.1em; }
-    #ytSearchArea { border-top:1px solid #263d68; padding-top:14px; margin-top:14px; text-align:left; }
-    #ytSearchTitle { color:#9deeff; font-size:11px; font-weight:900; letter-spacing:.14em; margin-bottom:8px; }
-    #ytKey, #ytQuery { width:100%; min-width:0; padding:11px 12px; margin:5px 0; border:1px solid #315d9c; border-radius:10px; background:#0b142b; color:white; font-size:13px; }
-    #ytSearchRow { display:flex; gap:7px; }
-    #ytSearchRow #ytQuery { flex:1; }
-    #ytSearch { padding:0 15px; border-radius:10px; font-size:12px; letter-spacing:.04em; }
-    #ytResults { max-height:180px; overflow:auto; margin-top:7px; }
-    .ytResult { display:flex; gap:9px; align-items:center; width:100%; padding:8px; margin:5px 0; border-radius:10px; background:#111e39; border:1px solid #263d68; color:white; text-align:left; letter-spacing:0; }
-    .ytResult img { width:72px; height:48px; object-fit:cover; border-radius:6px; }
-    .ytResult span { min-width:0; font-size:11px; font-weight:700; line-height:1.3; }
-    #ytStatus { min-height:18px; margin-top:5px; color:#ffcf72; font-size:11px; line-height:1.35; }
-    #ytDock { position:fixed; z-index:6; right:10px; bottom:10px; width:240px; height:200px; display:none; border:1px solid #315d9c; border-radius:12px; overflow:hidden; background:#050914; box-shadow:0 0 24px #0009; }
-    #ytDock iframe { width:100%; height:100%; border:0; }
+    #trackSearch { width:100%; padding:11px 12px; margin:5px 0 9px; border:1px solid #315d9c; border-radius:10px; background:#0b142b; color:white; font-size:13px; }
+    #searchStatus { min-height:18px; margin:0 0 8px; color:#9caacb; font-size:11px; text-align:left; }
     #trackNow { position:absolute; top:74px; left:50%; transform:translateX(-50%); color:#9deeff; font-size:11px; letter-spacing:.12em; white-space:nowrap; text-shadow:0 0 10px #00bfff; }
     #status { min-height: 22px; color: #ffcf72; font-size: 12px; margin-top: 12px; }
     .hidden { display: none !important; }
@@ -66,28 +55,20 @@
       <h1>BEAT RUSH</h1>
       <p>Pick a track from your in-game music library, then grab your Quest controllers and slice the blocks to the beat.</p>
       <div id="songMenu">
-        <div id="songHeading"><span>SELECT A TRACK</span><span>ORIGINAL MUSIC</span></div>
+        <div id="songHeading"><span>SEARCH YOUR MUSIC</span><span>IN-GAME LIBRARY</span></div>
+        <input id="trackSearch" type="search" placeholder="Search song, artist, or style…" aria-label="Search music library">
+        <div id="searchStatus" aria-live="polite">3 original tracks available. Search by title, artist, or style.</div>
         <button class="song selected" data-track="neon" aria-pressed="true">
-          <span class="cover">⚡</span><span class="songInfo"><span class="songName">Neon Pulse</span><span class="songMeta">105 BPM · ELECTRO</span></span><span class="songCheck">✓</span>
+          <span class="cover">⚡</span><span class="songInfo"><span class="songName">Neon Pulse</span><span class="songMeta">Beat Rush Audio Lab · 105 BPM · Electro</span></span><span class="songCheck">✓</span>
         </button>
         <button class="song" data-track="cyber" aria-pressed="false">
-          <span class="cover">🔥</span><span class="songInfo"><span class="songName">Cyber Sprint</span><span class="songMeta">124 BPM · SYNTHWAVE</span></span><span class="songCheck"></span>
+          <span class="cover">🔥</span><span class="songInfo"><span class="songName">Cyber Sprint</span><span class="songMeta">Beat Rush Audio Lab · 124 BPM · Synthwave</span></span><span class="songCheck"></span>
         </button>
         <button class="song" data-track="galaxy" aria-pressed="false">
-          <span class="cover">🌌</span><span class="songInfo"><span class="songName">Galaxy Groove</span><span class="songMeta">92 BPM · SPACE FUNK</span></span><span class="songCheck"></span>
+          <span class="cover">🌌</span><span class="songInfo"><span class="songName">Galaxy Groove</span><span class="songMeta">Beat Rush Audio Lab · 92 BPM · Space funk</span></span><span class="songCheck"></span>
         </button>
         <div id="volumeLabel"><span>MUSIC VOLUME</span><span id="volumeValue">70%</span></div>
         <input id="musicVolume" type="range" min="0" max="100" value="70" aria-label="Music volume">
-        <div id="ytSearchArea">
-          <div id="ytSearchTitle">SEARCH YOUTUBE</div>
-          <input id="ytKey" type="password" autocomplete="off" placeholder="Paste your YouTube API key">
-          <div id="ytSearchRow">
-            <input id="ytQuery" type="search" placeholder="Song or artist name">
-            <button id="ytSearch" type="button">SEARCH</button>
-          </div>
-          <div id="ytStatus">Add a YouTube API key to search videos.</div>
-          <div id="ytResults"></div>
-        </div>
       </div>
       <button id="play">ENTER VR</button>
       <div id="status">Checking WebXR support…</div>
@@ -95,7 +76,6 @@
       <p style="font-size:11px;color:#7484a7">Best experienced in the Meta Quest Browser over HTTPS.</p>
     </div>
   </div>
-  <div id="ytDock" aria-label="YouTube video player"></div>
 
   <script type="module">
     import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
@@ -108,74 +88,27 @@
     const trackNow = document.getElementById('trackNow');
     const musicVolumeControl = document.getElementById('musicVolume');
     const volumeValue = document.getElementById('volumeValue');
-    const ytKeyInput = document.getElementById('ytKey');
-    const ytQueryInput = document.getElementById('ytQuery');
-    const ytSearchButton = document.getElementById('ytSearch');
-    const ytStatus = document.getElementById('ytStatus');
-    const ytResults = document.getElementById('ytResults');
-    const ytDock = document.getElementById('ytDock');
-    let ytPlayerFrame = null;
     let musicVolume = 0.7;
-    try { ytKeyInput.value = localStorage.getItem('beatRushYouTubeKey') || ''; } catch (_) {}
     musicVolumeControl.addEventListener('input', () => {
       musicVolume = Number(musicVolumeControl.value) / 100;
       volumeValue.textContent = musicVolumeControl.value + '%';
     });
-
-    async function searchYouTube() {
-      const key = ytKeyInput.value.trim();
-      const query = ytQueryInput.value.trim();
-      if (!key) { ytStatus.textContent = 'Paste your YouTube API key first.'; return; }
-      if (!query) { ytStatus.textContent = 'Type a song or artist name.'; return; }
-      try { localStorage.setItem('beatRushYouTubeKey', key); } catch (_) {}
-      ytSearchButton.disabled = true;
-      ytStatus.textContent = 'Searching YouTube…';
-      ytResults.replaceChildren();
-      try {
-        const params = new URLSearchParams({
-          part: 'snippet', q: query, type: 'video', maxResults: '8',
-          videoEmbeddable: 'true', safeSearch: 'moderate', key
-        });
-        const response = await fetch('https://www.googleapis.com/youtube/v3/search?' + params.toString());
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error?.message || 'YouTube search failed.');
-        const items = (data.items || []).filter(item => item.id?.videoId);
-        if (!items.length) { ytStatus.textContent = 'No embeddable videos found. Try another search.'; return; }
-        ytStatus.textContent = 'Choose a result to play it inside BEAT RUSH.';
-        for (const item of items) {
-          const videoId = item.id.videoId;
-          const resultButton = document.createElement('button');
-          resultButton.type = 'button';
-          resultButton.className = 'ytResult';
-          const image = document.createElement('img');
-          image.alt = '';
-          image.src = item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || '';
-          const title = document.createElement('span');
-          title.textContent = item.snippet.title + ' · ' + item.snippet.channelTitle;
-          resultButton.append(image, title);
-          resultButton.addEventListener('click', () => {
-            const frame = document.createElement('iframe');
-            frame.title = 'YouTube player';
-            frame.allow = 'autoplay; encrypted-media; picture-in-picture';
-            frame.referrerPolicy = 'strict-origin-when-cross-origin';
-            frame.allowFullscreen = true;
-            frame.src = 'https://www.youtube.com/embed/' + encodeURIComponent(videoId) + '?autoplay=1&playsinline=1&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
-            ytDock.replaceChildren(frame);
-            ytDock.style.display = 'block';
-            ytStatus.textContent = 'Playing: ' + item.snippet.title;
-          });
-          ytResults.appendChild(resultButton);
-        }
-      } catch (error) {
-        ytStatus.textContent = error.message || 'Search failed. Check your API key and try again.';
-      } finally {
-        ytSearchButton.disabled = false;
-      }
-    }
-    ytSearchButton.addEventListener('click', searchYouTube);
-    ytQueryInput.addEventListener('keydown', event => {
-      if (event.key === 'Enter') searchYouTube();
+    const trackSearch = document.getElementById('trackSearch');
+    const searchStatus = document.getElementById('searchStatus');
+    trackSearch.addEventListener('input', () => {
+      const query = trackSearch.value.trim().toLowerCase();
+      let matches = 0;
+      document.querySelectorAll('.song').forEach(button => {
+        const searchable = (button.innerText + ' ' + button.dataset.track).toLowerCase();
+        const match = !query || searchable.includes(query);
+        button.hidden = !match;
+        if (match) matches++;
+      });
+      searchStatus.textContent = matches
+        ? matches + ' track' + (matches === 1 ? '' : 's') + ' found in your in-game library.'
+        : 'No matches in this music library. Try a song title, Beat Rush Audio Lab, or a style like electro.';
     });
+
     const tracks = {
       neon: { name: 'NEON PULSE', bpm: 105, bass: 65, lead: 900, pattern: [0, 2] },
       cyber: { name: 'CYBER SPRINT', bpm: 124, bass: 82, lead: 1200, pattern: [0, 1, 3] },

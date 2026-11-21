@@ -23,6 +23,12 @@
     #card p { color: #b7c6e6; line-height: 1.55; font-size: 14px; }
     button { border: 0; border-radius: 999px; padding: 15px 25px; background: linear-gradient(90deg,#00c9ff,#5574ff); color: #04101d; font-size: 16px; font-weight: 900; letter-spacing: .08em; cursor: pointer; }
     button:disabled { opacity: .45; }
+    #music-search { display: flex; gap: 8px; margin: 18px 0 8px; }
+    #music-query { min-width: 0; flex: 1; border: 1px solid #365d91; border-radius: 999px; padding: 13px 15px; background: #101b33; color: white; font-size: 14px; outline: none; }
+    #music-query:focus { border-color: #20cfff; box-shadow: 0 0 0 2px #20cfff33; }
+    #music-search button { padding: 12px 16px; font-size: 12px; white-space: nowrap; }
+    #music-note { margin: 5px 0 12px; color: #8799bd; font-size: 11px; line-height: 1.4; }
+    @media (max-width: 380px) { #music-search { flex-direction: column; } }
     #status { min-height: 22px; color: #ffcf72; font-size: 12px; margin-top: 12px; }
     .hidden { display: none !important; }
   </style>
@@ -37,6 +43,11 @@
     <div id="card">
       <h1>BEAT RUSH</h1>
       <p>Grab your Quest controllers, enter VR, and slice the blocks as they fly toward you.</p>
+      <form id="music-search" autocomplete="off">
+        <input id="music-query" type="search" placeholder="Search any song on Spotify…" aria-label="Search songs on Spotify">
+        <button type="submit">SEARCH MUSIC</button>
+      </form>
+      <div id="music-note">Search opens Spotify in a new tab. Sign in to play songs there.</div>
       <button id="play">ENTER VR</button>
       <div id="status">Checking WebXR support…</div>
       <p style="font-size:11px;color:#7484a7">Best experienced in the Meta Quest Browser over HTTPS.</p>
@@ -51,6 +62,20 @@
     const playButton = document.getElementById('play');
     const scoreEl = document.getElementById('score');
     const comboEl = document.getElementById('combo');
+
+
+    const musicSearch = document.getElementById('music-search');
+    const musicQuery = document.getElementById('music-query');
+    musicSearch.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const query = musicQuery.value.trim();
+      if (!query) {
+        musicQuery.focus();
+        return;
+      }
+      const spotifySearchUrl = 'https://open.spotify.com/search/' + encodeURIComponent(query);
+      window.open(spotifySearchUrl, '_blank', 'noopener,noreferrer');
+    });
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x080b18);

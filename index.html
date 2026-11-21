@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#080b18">
+  <title>BEAT RUSH VR</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, Arial, sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #080b18; color: white; }
+    canvas { display: block; }
+    #hud { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+    #brand { position: absolute; top: max(16px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; text-shadow: 0 0 18px #00d9ff; }
+    #brand strong { display: block; font-size: clamp(22px, 4vw, 36px); letter-spacing: .16em; }
+    #brand span { color: #9caacb; font-size: 11px; letter-spacing: .25em; }
+    #score { position: absolute; top: 18px; left: 18px; font-size: 20px; font-weight: 800; }
+    #combo { color: #54e8ff; font-size: 13px; }
+    #help { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); width: min(92vw, 560px); text-align: center; color: #b9c4df; font-size: 13px; line-height: 1.45; text-shadow: 0 2px 8px #000; }
+    #panel { position: fixed; z-index: 5; inset: 0; display: grid; place-items: center; padding: 22px; background: radial-gradient(ellipse at center, rgba(20,37,75,.82), rgba(4,7,18,.97)); }
+    #card { width: min(92vw, 440px); padding: 28px 24px; text-align: center; border: 1px solid #315d9c; border-radius: 22px; background: rgba(8,14,31,.94); box-shadow: 0 0 50px #087bba35; }
+    #card h1 { margin: 0; font-size: clamp(30px, 8vw, 48px); letter-spacing: .12em; color: #fff; text-shadow: 0 0 18px #00bfff; }
+    #card p { color: #b7c6e6; line-height: 1.55; font-size: 14px; }
+    button { border: 0; border-radius: 999px; padding: 15px 25px; background: linear-gradient(90deg,#00c9ff,#5574ff); color: #04101d; font-size: 16px; font-weight: 900; letter-spacing: .08em; cursor: pointer; }
+    button:disabled { opacity: .45; }
+    #status { min-height: 22px; color: #ffcf72; font-size: 12px; margin-top: 12px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div id="brand"><strong>BEAT RUSH</strong><span>VR RHYTHM PROTOTYPE</span></div>
+    <div id="score">0 <div id="combo">COMBO 0</div></div>
+    <div id="help">Hold your Quest controllers and swing the matching saber through the incoming blocks. Blue blocks use the blue saber; red blocks use the red saber.</div>
+  </div>
+  <div id="panel">
+    <div id="card">
+      <h1>BEAT RUSH</h1>
+      <p>Grab your Quest controllers, enter VR, and slice the blocks as they fly toward you.</p>
+      <button id="play">ENTER VR</button>
+      <div id="status">Checking WebXR support…</div>
+      <p style="font-size:11px;color:#7484a7">Best experienced in the Meta Quest Browser over HTTPS.</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+    const statusEl = document.getElementById('status');
+    const panel = document.getElementById('panel');
+    const playButton = document.getElementById('play');
+    const scoreEl = document.getElementById('score');
+    const comboEl = document.getElementById('combo');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x080b18);
+    scene.fog = new THREE.Fog(0x080b18, 12, 32);
+
+    const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 80);
+    camera.position.set(0, 1.6, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.xr.enabled = true;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.HemisphereLight(0x9dbbff, 0x151020, 2.0));
+    const keyLight = new THREE.PointLight(0x27cfff, 35, 18);
+    keyLight.position.set(0, 4, -5);
+    scene.add(keyLight);
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(30, 35),
+      new THREE.MeshStandardMaterial({ color: 0x11182c, roughness: 0.8, metalness: 0.15 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, 0, -8);
+    scene.add(floor);
+
+    const grid = new THREE.GridHelper(30, 30, 0x17618a, 0x202b48);
+    grid.position.set(0, 0.012, -8);
+    scene.add(grid);
+
+    // Neon lane rails make the incoming-block direction easy to read.
+    for (const x of [-2.2, 2.2]) {
+      const rail = new THREE.Mesh(
+        new THREE.BoxGeometry(0.035, 0.035, 24),
+        new THREE.MeshBasicMaterial({ color: 0x167da8 })
+      );
+      rail.position.set(x, 0.03, -10);
+      scene.add(rail);
+    }
+
+    // A simple floating cartoon gorilla placeholder: body, head, ears and arms.
+    const gorilla = new THREE.Group();
+    const fur = new THREE.MeshStandardMaterial({ color: 0x6650a4, roughness: 0.85 });
+    const face = new THREE.MeshStandardMaterial({ color: 0xd2a5a0, roughness: 0.8 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x171426, roughness: 0.7 });
+    function sphere(parent, material, pos, scale) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), material);
+      m.position.set(...pos); m.scale.set(...scale); parent.add(m); return m;
+    }
+    sphere(gorilla, fur, [0, 1.22, -1.25], [0.48, 0.58, 0.36]);
+    sphere(gorilla, fur, [0, 1.88, -1.25], [0.43, 0.43, 0.38]);
+    sphere(gorilla, face, [0, 1.79, -0.91], [0.29, 0.22, 0.12]);
+    sphere(gorilla, dark, [-0.15, 1.96, -0.91], [0.055, 0.07, 0.045]);
+    sphere(gorilla, dark, [0.15, 1.96, -0.91], [0.055, 0.07, 0.045]);
+    sphere(gorilla, fur, [-0.42, 1.86, -1.25], [0.13, 0.17, 0.13]);
+    sphere(gorilla, fur, [0.42, 1.86, -1.25], [0.13, 0.17, 0.13]);
+    sphere(gorilla, fur, [-0.56, 1.22, -1.22], [0.22, 0.48, 0.22]);
+    sphere(gorilla, fur, [0.56, 1.22, -1.22], [0.22, 0.48, 0.22]);
+    scene.add(gorilla);
+
+    const controllers = [];
+    const sabers = [];
+    const saberTips = [];
+    const saberColors = [0x21cfff, 0xff315f];
+    const saberMaterials = [
+      new THREE.MeshStandardMaterial({ color: saberColors[0], emissive: saberColors[0], emissiveIntensity: 2.4, metalness: 0.2, roughness: 0.25 }),
+      new THREE.MeshStandardMaterial({ color: saberColors[1], emissive: saberColors[1], emissiveIntensity: 2.4, metalness: 0.2, roughness: 0.25 })
+    ];
+
+    for (let i = 0; i < 2; i++) {
+      const controller = renderer.xr.getController(i);
+      controller.addEventListener('connected', (event) => {
+        controller.userData.inputSource = event.data;
+      });
+      controller.addEventListener('disconnected', () => {
+        controller.userData.inputSource = null;
+      });
+      scene.add(controller);
+      controllers.push(controller);
+
+      const saber = new THREE.Group();
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.045, 0.05, 0.25, 12),
+        new THREE.MeshStandardMaterial({ color: 0x252b3c, metalness: 0.8, roughness: 0.3 })
+      );
+      handle.position.y = -0.02;
+      saber.add(handle);
+      const blade = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.055, 0.72, 12), saberMaterials[i]);
+      blade.position.y = -0.49;
+      saber.add(blade);
+      const glow = new THREE.PointLight(saberColors[i], 2, 2);
+      glow.position.y = -0.45;
+      saber.add(glow);
+      controller.add(saber);
+      sabers.push(saber);
+      saberTips.push(new THREE.Vector3(0, -0.88, 0));
+    }
+
+    const blocks = [];
+    const blockGeometry = new THREE.BoxGeometry(0.42, 0.42, 0.42);
+    const blockMaterials = [
+      new THREE.MeshStandardMaterial({ color: 0x19cfff, emissive: 0x087da8, emissiveIntensity: 1.5, roughness: 0.3 }),
+      new THREE.MeshStandardMaterial({ color: 0xff315f, emissive: 0xa10b37, emissiveIntensity: 1.5, roughness: 0.3 })
+    ];
+
+    function makeBlock(lane, y) {
+      const group = new THREE.Group();
+      const cube = new THREE.Mesh(blockGeometry, blockMaterials[lane]);
+      group.add(cube);
+      // A bright stripe on the front gives each target a clear facing side.
+      const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(0.27, 0.045, 0.025),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      stripe.position.z = 0.225;
+      group.add(stripe);
+      group.position.set(lane === 0 ? -0.85 : 0.85, y, -13);
+      scene.add(group);
+      blocks.push({ mesh: group, lane, hit: false });
+    }
+
+    let score = 0, combo = 0, lastSpawn = 0, beat = 0, running = false;
+    const clock = new THREE.Clock();
+    const beatMs = 60000 / 105;
+    let audioContext = null;
+    let audioTimer = null;
+
+    function playTone(freq, duration, type, volume, when) {
+      if (!audioContext) return;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, when);
+      gain.gain.setValueAtTime(volume, when);
+      gain.gain.exponentialRampToValueAtTime(0.001, when + duration);
+      osc.connect(gain); gain.connect(audioContext.destination);
+      osc.start(when); osc.stop(when + duration);
+    }
+
+    function startBeatTrack() {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      audioContext = new AudioCtx();
+      audioContext.resume();
+      let next = audioContext.currentTime + 0.05;
+      audioTimer = setInterval(() => {
+        if (!audioContext) return;
+        const now = audioContext.currentTime;
+        while (next < now + 0.15) {
+          playTone(65, 0.16, 'sine', 0.7, next);
+          playTone(900, 0.035, 'square', 0.035, next + 0.01);
+          if (beat % 2 === 1) playTone(180, 0.08, 'triangle', 0.12, next);
+          next += beatMs / 1000;
+          beat++;
+        }
+      }, 40);
+    }
+
+    function updateScore() {
+      scoreEl.firstChild.textContent = String(score) + ' ';
+      comboEl.textContent = 'COMBO ' + combo;
+    }
+
+    function pointSegmentDistance(point, start, end) {
+      const segment = new THREE.Vector3().subVectors(end, start);
+      const lengthSq = segment.lengthSq();
+      if (lengthSq < 1e-8) return point.distanceTo(start);
+      const t = THREE.MathUtils.clamp(new THREE.Vector3().subVectors(point, start).dot(segment) / lengthSq, 0, 1);
+      const closest = start.clone().addScaledVector(segment, t);
+      return point.distanceTo(closest);
+    }
+
+    const tempStart = new THREE.Vector3();
+    const tempEnd = new THREE.Vector3();
+    const tempCenter = new THREE.Vector3();
+
+    function checkHits() {
+      for (const controller of controllers) {
+        if (!controller.visible) continue;
+        controller.updateMatrixWorld(true);
+        tempStart.setFromMatrixPosition(controller.matrixWorld);
+        const tip = new THREE.Vector3(0, -0.88, 0);
+        controller.localToWorld(tip);
+        tempEnd.copy(tip);
+        const side = controller === controllers[0] ? 0 : 1;
+        for (let i = blocks.length - 1; i >= 0; i--) {
+          const block = blocks[i];
+          if (block.hit || block.lane !== side) continue;
+          block.mesh.getWorldPosition(tempCenter);
+          if (pointSegmentDistance(tempCenter, tempStart, tempEnd) < 0.34) {
+            block.hit = true;
+            scene.remove(block.mesh);
+            blocks.splice(i, 1);
+            score += 10 + Math.min(combo, 20);
+            combo++;
+            updateScore();
+          }
+        }
+      }
+    }
+
+    function spawnBeat() {
+      const lane = beat % 2;
+      const y = beat % 4 < 2 ? 1.45 : 1.85;
+      makeBlock(lane, y);
+      // Every fourth beat adds a second target on the opposite side.
+      if (beat % 4 === 3) makeBlock(1 - lane, 1.55);
+    }
+
+    function animate() {
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const elapsed = clock.elapsedTime;
+      if (running) {
+        if (elapsed - lastSpawn > beatMs / 1000) {
+          lastSpawn = elapsed;
+          spawnBeat();
+          beat++;
+        }
+        for (let i = blocks.length - 1; i >= 0; i--) {
+          const block = blocks[i];
+          block.mesh.position.z += dt * 5.0;
+          block.mesh.rotation.x += dt * 0.45;
+          block.mesh.rotation.y += dt * 0.7;
+          if (block.mesh.position.z > 1.2) {
+            scene.remove(block.mesh);
+            blocks.splice(i, 1);
+            combo = 0;
+            updateScore();
+          }
+        }
+        checkHits();
+      }
+      renderer.render(scene, camera);
+    }
+    renderer.setAnimationLoop(animate);
+
+    async function enterVR() {
+      if (!navigator.xr) {
+        statusEl.textContent = 'WebXR is not available here. Open this HTTPS page in the Meta Quest Browser.';
+        return;
+      }
+      try {
+        const supported = await navigator.xr.isSessionSupported('immersive-vr');
+        if (!supported) {
+          statusEl.textContent = 'VR is not supported by this browser. Try the Meta Quest Browser.';
+          return;
+        }
+        const session = await navigator.xr.requestSession('immersive-vr', {
+          optionalFeatures: ['local-floor', 'bounded-floor']
+        });
+        await renderer.xr.setSession(session);
+        panel.classList.add('hidden');
+        running = true;
+        startBeatTrack();
+        session.addEventListener('end', () => {
+          running = false;
+          panel.classList.remove('hidden');
+          statusEl.textContent = 'VR session ended. Press ENTER VR to play again.';
+          if (audioTimer) clearInterval(audioTimer);
+          if (audioContext) { audioContext.close(); audioContext = null; }
+        });
+      } catch (error) {
+        statusEl.textContent = 'Could not enter VR: ' + (error && error.message ? error.message : String(error));
+      }
+    }
+
+    playButton.addEventListener('click', enterVR);
+    if (!navigator.xr) {
+      statusEl.textContent = 'Open this page in the Meta Quest Browser to use VR.';
+    } else {
+      navigator.xr.isSessionSupported('immersive-vr').then(ok => {
+        statusEl.textContent = ok ? 'Quest VR detected. Press ENTER VR.' : 'This browser does not report immersive VR support.';
+      }).catch(() => { statusEl.textContent = 'Open in the Meta Quest Browser over HTTPS.'; });
+    }
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>
